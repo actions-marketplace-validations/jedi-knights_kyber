@@ -66,11 +66,16 @@ func TestText_RendersFileAndFunction(t *testing.T) {
 	if !strings.Contains(s, "Foo") {
 		t.Errorf("output missing function name: %q", s)
 	}
-	if !strings.Contains(s, "cyclomatic=12") {
-		t.Errorf("output missing cyclomatic value: %q", s)
+	// New table layout: short labels in the header row, values right-aligned
+	// in cells, flagged values get an attached `!`.
+	if !strings.Contains(s, "cyc") || !strings.Contains(s, "read") {
+		t.Errorf("output missing short metric labels: %q", s)
 	}
-	if !strings.Contains(s, "readability=0.42") {
-		t.Errorf("output missing readability value: %q", s)
+	if !strings.Contains(s, "12!") {
+		t.Errorf("output missing flagged cyclomatic value '12!': %q", s)
+	}
+	if !strings.Contains(s, "0.42!") {
+		t.Errorf("output missing flagged readability value '0.42!': %q", s)
 	}
 	if !strings.Contains(s, "Functions: 1") {
 		t.Errorf("output missing summary line: %q", s)
@@ -78,6 +83,105 @@ func TestText_RendersFileAndFunction(t *testing.T) {
 	// Findings increment the count: 2 findings expected from the fixture.
 	if !strings.Contains(s, "Findings: 2") {
 		t.Errorf("expected 'Findings: 2' in summary; got %q", s)
+	}
+}
+
+// makeMultiMetricReport builds a 2-function, 3-metric report including the
+// maintainability composite so the renderer's MI-first column ordering and
+// right-aligned column widths can be asserted line-by-line.
+func makeMultiMetricReport(t *testing.T) *domain.Report {
+	t.Helper()
+	fset := token.NewFileSet()
+	const src = `package x
+func New() {}
+func Risky() {}
+`
+	file, err := parser.ParseFile(fset, "x/x.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	pkg := &domain.Package{Name: "x", FileSet: fset}
+	fnNew := &domain.Function{
+		Name:     "New",
+		Package:  pkg,
+		File:     "x/x.go",
+		FuncDecl: file.Decls[0].(*ast.FuncDecl),
+		FileSet:  fset,
+	}
+	fnRisky := &domain.Function{
+		Name:     "Risky",
+		Package:  pkg,
+		File:     "x/x.go",
+		FuncDecl: file.Decls[1].(*ast.FuncDecl),
+		FileSet:  fset,
+	}
+	flag := []domain.Finding{{Severity: domain.SeverityWarning, Line: 2, Message: "flagged"}}
+	return &domain.Report{
+		StartTime:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndTime:      time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC),
+		FilesScanned: 1,
+		Scores: []domain.Score{
+			{MetricID: "cyclomatic", Function: fnNew, Value: 1},
+			{MetricID: "maintainability", Function: fnNew, Value: 88},
+			{MetricID: "readability", Function: fnNew, Value: 0.68},
+			{MetricID: "cyclomatic", Function: fnRisky, Value: 12, Findings: flag},
+			{MetricID: "maintainability", Function: fnRisky, Value: 50, Findings: flag},
+			{MetricID: "readability", Function: fnRisky, Value: 0.31, Findings: flag},
+		},
+	}
+}
+
+func TestText_RendersAlignedTable(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+
+	// Act
+	if err := NewText().Render(&buf, makeMultiMetricReport(t)); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	lines := strings.Split(buf.String(), "\n")
+
+	// Assert — locate the file header and the three rows that follow.
+	var headerIdx int
+	for i, line := range lines {
+		if line == "x/x.go" {
+			headerIdx = i
+			break
+		}
+	}
+	if headerIdx == 0 && lines[0] != "x/x.go" {
+		t.Fatalf("missing file header line in output:\n%s", buf.String())
+	}
+	header := lines[headerIdx+1]
+	rowNew := lines[headerIdx+2]
+	rowRisky := lines[headerIdx+3]
+
+	// MI must be the first metric column (after the function-name column).
+	miPos := strings.Index(header, "mi")
+	cycPos := strings.Index(header, "cyc")
+	readPos := strings.Index(header, "read")
+	if miPos < 0 || cycPos < 0 || readPos < 0 {
+		t.Fatalf("header missing short labels: %q", header)
+	}
+	if miPos >= cycPos || cycPos >= readPos {
+		t.Errorf("column order should be mi, cyc, read; header was %q", header)
+	}
+
+	// Values must align under their header columns (right-aligned), and the
+	// flagged value must include `!` with no intervening space.
+	if !strings.Contains(rowNew, " 88 ") {
+		t.Errorf("expected New row to contain ' 88 ' for mi=88; got %q", rowNew)
+	}
+	if !strings.Contains(rowRisky, "50!") {
+		t.Errorf("expected Risky row to contain '50!' for flagged mi; got %q", rowRisky)
+	}
+	if strings.Contains(rowRisky, "50 !") {
+		t.Errorf("flagged marker should be adjacent to value; got %q", rowRisky)
+	}
+
+	// The old key=value form must be gone for per-function rows.
+	if strings.Contains(rowRisky, "maintainability=") {
+		t.Errorf("per-function row should not use long metric=value form; got %q", rowRisky)
 	}
 }
 

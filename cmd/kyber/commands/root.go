@@ -9,7 +9,7 @@ func NewRoot(version string) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "kyber",
 		Short:         "Function-level Go code-quality metrics.",
-		Long:          "kyber analyzes a Go codebase function by function and emits per-function scores for cyclomatic complexity, testability, readability, and any other registered metric.",
+		Long:          "kyber analyzes a Go codebase function by function and emits per-function scores across size, complexity, and maintainability metrics — including cyclomatic and cognitive complexity, NPath, Halstead difficulty and effort, maintainability index, nesting depth, return count, function length, readability, and testability. Run `kyber list-metrics` for the full registered set.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: false,

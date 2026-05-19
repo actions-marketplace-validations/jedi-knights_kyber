@@ -1,48 +1,133 @@
 # kyber.toml — function-level Go code metrics
-# Copy to kyber.toml and adjust to your project.
+#
+# Copy this file to `kyber.toml` in your project root and adjust the values.
+# Every key shown here is optional; omitting a key falls back to kyber's
+# built-in default. Settings are also overridable per-run by CLI flags and
+# environment variables (see README — Configuration).
 
-# Paths to analyze. Same semantics as the analyze command's positional args.
-# Use Go's ./... convention to recurse.
+# ----- Top-level options -------------------------------------------------------
+
+# Paths to analyze. Same semantics as positional args to `kyber analyze`.
+# Use Go's `./...` convention to recurse from the module root.
 paths = ["./..."]
 
-# Glob patterns to exclude. Matched against each file's path.
+# Glob patterns to exclude. Matched against each file's path relative to the
+# working directory. Defaults exclude vendored code and testdata fixtures.
 exclude = ["vendor/**", "testdata/**", "**/*_test.go"]
 
-# Output format: "text" | "json" | "sarif"
+# Output format: "text" (human-readable) | "json" | "sarif"
 format = "text"
 
 # When any function exceeds its metric's threshold, exit non-zero.
-# Useful as a CI gate.
+# Wire this on in CI as a quality gate; leave it off for local exploration.
 fail_on_threshold = false
 
-# Enable verbose progress output.
+# Enable verbose progress output (per-file logging during the walk).
 verbose = false
 
-# ----- Metric configuration -----------------------------------------------
-# Each [metrics.<id>] table configures one metric. Setting enabled = false
-# disables it entirely. Setting a threshold overrides the metric's default.
+# ----- Metric configuration ----------------------------------------------------
+#
+# Each [metrics.<id>] table configures one metric. The `<id>` matches the ID
+# column in `kyber list-metrics`. Within a metric table:
+#
+#   enabled   — set to false to skip this metric entirely (default: true)
+#   threshold — the value above (or below, for "lower is worse" metrics) which
+#               a function is flagged. 0 means "use the metric's default".
+#
+# A handful of metrics (readability, testability) accept extra knobs — they are
+# documented inline below.
+#
+# Removing a [metrics.<id>] table is equivalent to keeping the metric enabled
+# with its default threshold. List only the metrics you want to *customize*.
 
+# McCabe Cyclomatic Complexity — independent paths through the function.
+# Direction: higher is worse.
 [metrics.cyclomatic]
 enabled   = true
-threshold = 7        # flag functions with complexity > 7
+threshold = 7
 
-[metrics.testability]
+# SonarSource Cognitive Complexity — control flow weighted by nesting.
+# Direction: higher is worse.
+[metrics.cognitive]
 enabled   = true
-threshold = 0.6      # flag functions whose score < 0.6
-max_params = 5
-max_lines  = 40
-# Weights for the four signals (sum need not equal 1; they are normalized).
-weight_params       = 1.0
-weight_side_effects = 1.0
-weight_interfaces   = 1.0
-weight_length       = 1.0
+threshold = 15
 
+# NPath Complexity — number of acyclic execution paths (multiplicative).
+# Direction: higher is worse.
+[metrics.npath]
+enabled   = true
+threshold = 200
+
+# Halstead Volume — token count weighted by vocabulary size.
+# Direction: higher is worse.
+[metrics.halstead]
+enabled   = true
+threshold = 1000
+
+# Halstead Difficulty — (n1/2) * (N2/n2).
+# Direction: higher is worse.
+[metrics.difficulty]
+enabled   = true
+threshold = 15
+
+# Halstead Effort — Difficulty × Volume.
+# Direction: higher is worse.
+[metrics.effort]
+enabled   = true
+threshold = 10000
+
+# Maintainability Index — composite of Halstead Volume, cyclomatic, and LOC.
+# Direction: lower is worse (this is the only metric where higher is better).
+[metrics.maintainability]
+enabled   = true
+threshold = 65
+
+# Maximum block nesting depth inside the function body.
+# Direction: higher is worse.
+[metrics.nesting]
+enabled   = true
+threshold = 4
+
+# Function Length — non-blank, non-comment lines of the function body.
+# Direction: higher is worse.
+[metrics.funclen]
+enabled   = true
+threshold = 40
+
+# Return Statement Count — number of `return` statements in the function body
+# (excluding those inside nested function literals).
+# Direction: higher is worse.
+[metrics.returns]
+enabled   = true
+threshold = 4
+
+# Readability — weighted 0–1 score from length, nesting, identifier length,
+# and comment density. Direction: lower is worse.
+#
+# max_lines / max_nesting set the "worst case" for the length and nesting
+# sub-signals. The four weights need not sum to 1 — kyber normalizes them.
 [metrics.readability]
-enabled    = true
-threshold  = 0.6
+enabled     = true
+threshold   = 0.6
 max_lines   = 40
 max_nesting = 4
 weight_length   = 1.0
 weight_nesting  = 1.0
 weight_idents   = 1.0
 weight_comments = 1.0
+
+# Testability — weighted 0–1 score from parameter count, side effects,
+# interface parameters, and length. Direction: lower is worse.
+#
+# max_params / max_lines set the "worst case" for those sub-signals. Pure
+# fmt.Sprintf/Errorf/Sprint/Append*/Sscan* calls are excluded from the
+# side-effect count.
+[metrics.testability]
+enabled    = true
+threshold  = 0.6
+max_params = 5
+max_lines  = 40
+weight_params       = 1.0
+weight_side_effects = 1.0
+weight_interfaces   = 1.0
+weight_length       = 1.0

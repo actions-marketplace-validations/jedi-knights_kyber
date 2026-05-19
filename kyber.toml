@@ -1,0 +1,12 @@
+# kyber.toml — kyber's own project configuration.
+#
+# See kyber.toml.example for every supported key and per-metric knobs.
+# This file lists only the settings that differ from the built-in defaults.
+
+paths   = ["./..."]
+exclude = ["vendor/**", "testdata/**", "**/*_test.go"]
+
+# CI gate is off until the existing findings are worked down. Local runs of
+# `kyber analyze ./...` still surface the offenders; this just keeps `make
+# test` and the release pipeline green while the cleanup is in progress.
+fail_on_threshold = false
