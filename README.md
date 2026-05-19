@@ -19,22 +19,20 @@
 kyber walks a Go codebase, parses every function, and scores each one against a registered set of code-quality metrics. Output is human-readable text, machine-readable JSON, or SARIF v2.1.0 for GitHub code scanning.
 
 ```
-$ kyber analyze ./...
+$ kyber analyze ./internal/adapters/parser/...
 
 internal/adapters/parser/goast.go
-  parseDir          cognitive=3  cyclomatic=3  difficulty=15.24  effort=9043  funclen=12  halstead=500  maintainability=60  nesting=2  npath=5  readability=0.46 !  returns=2  testability=0.56 !
-
-internal/domain/metrics/cyclomatic.go
-  Analyze           cognitive=5  cyclomatic=5  difficulty=18.10  effort=11200  effort=11200 !  funclen=14  halstead=540  maintainability=58  nesting=3  npath=4  readability=0.39 !  returns=2  testability=0.35 !
+  New                cognitive=0  cyclomatic=1  difficulty=6.00     effort=259      funclen=1   halstead=43    maintainability=88   nesting=1  npath=1   readability=0.68    returns=1  testability=0.99
+  GoAST.ParseFiles   cognitive=5  cyclomatic=5  difficulty=20.14 !  effort=14074 !  funclen=18  halstead=699  maintainability=51 !  nesting=3  npath=12  readability=0.31 !  returns=4  testability=0.53 !
+  parseFiles         cognitive=7  cyclomatic=5  difficulty=20.57 !  effort=22624 !  funclen=20  halstead=1100 ! maintainability=50 ! nesting=3  npath=9   readability=0.38 !  returns=4  testability=0.39 !
 
 [PACKAGE MEANS]
-  internal/adapters/parser   cognitive=3.47   cyclomatic=3.53   maintainability=59.84   npath=5.40   ...   (15 fns)
-  internal/domain/metrics    cognitive=1.64   cyclomatic=2.51   maintainability=72.13   npath=3.96   ...   (143 fns)
+  internal/adapters/parser   cognitive=3.47   cyclomatic=3.53   maintainability=59.84   npath=5.40   readability=0.46   testability=0.58   ...   (15 fns)
 
 [OVERALL]
-  cognitive=2.17   cyclomatic=2.84   maintainability=67.13   npath=4.95   ...   (241 fns)
+  cognitive=2.17   cyclomatic=2.84   maintainability=67.13   npath=4.95   readability=0.52   testability=0.73   ...   (241 fns)
 
-Functions: 241   Findings: 521   Files: 33   Time: 26ms
+Functions: 241   Findings: 521   Files: 33   Time: 27ms
 ```
 
 The architecture is built around a single `Metric` interface. Adding a new metric (nesting depth, parameter count, fan-out, etc.) is one new file in `internal/domain/metrics/` plus one registration line — nothing else needs to change.
@@ -265,7 +263,7 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 | Sub-signal | What it measures | Worst at |
 |---|---|---|
 | Parameters | parameter count vs. 5 | high parameter count |
-| Side effects | calls into `os`/`log`/`http`/`net`/`time`/`fmt` + reads of package globals, vs. 3 | many I/O calls or global reads |
+| Side effects | observably-impure calls into `os`/`log`/`http`/`net`/`time`/`fmt` (pure `fmt.Sprintf`/`Errorf`/`Sprint`/`Append*`/`Sscan*` excluded) + reads of package globals, vs. 3 | many I/O calls or global reads |
 | Interface params | fraction of parameters whose declared type is an interface | concrete dependencies dominate |
 | Length | function lines vs. 40 | longer functions |
 
