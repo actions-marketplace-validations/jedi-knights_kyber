@@ -148,7 +148,7 @@ kyber analyze --metric=cyclomatic --metric=readability ./...
 | `readability` | Weighted 0–1 score from length, nesting, identifier length, and comment density | `< 0.6` | lower is worse | [Buse & Weimer 2010](https://web.eecs.umich.edu/~weimerw/p/weimer-tse2010-readability-preprint.pdf) |
 | `testability` | Weighted 0–1 score from parameter count, side effects, interface parameters, and length | `< 0.6` | lower is worse | [Bruntink & van Deursen 2006](https://www.researchgate.net/publication/220378137_An_empirical_study_into_class_testability) |
 
-All twelve are configurable per-project via `kyber.toml`. See [Configuration](#configuration).
+All twelve are configurable per-project via `kyber.toml`. See [Configuration](#configuration). For formulas, implementation details, and extended references see [`internal/domain/metrics/README.md`](internal/domain/metrics/README.md).
 
 To run only specific metrics, pass `--metric=<id>` (repeatable). To exclude metrics, pass `--disable=<id>` (also repeatable). The examples in each subsection below use `--metric` to keep the output focused on one column at a time.
 
