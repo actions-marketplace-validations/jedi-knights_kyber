@@ -33,12 +33,13 @@ func TestAnalyzer_EndToEnd(t *testing.T) {
 	if len(report.Scores) == 0 {
 		t.Fatal("expected at least one score")
 	}
-	// Three metrics × N functions: every function should have three scores.
+	// Every function should receive one score per registered metric.
+	want := len(metrics.DefaultRegistry().All())
 	byFn := report.ByFunction()
 	for fn, scores := range byFn {
-		if len(scores) != 3 {
-			t.Errorf("function %s has %d scores, want 3 (one per registered metric)",
-				fn.Name, len(scores))
+		if len(scores) != want {
+			t.Errorf("function %s has %d scores, want %d (one per registered metric)",
+				fn.Name, len(scores), want)
 		}
 	}
 }

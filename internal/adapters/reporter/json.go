@@ -15,11 +15,37 @@ type JSON struct{}
 func NewJSON() *JSON { return &JSON{} }
 
 type jsonReport struct {
-	Scores       []jsonScore `json:"scores"`
-	StartTime    string      `json:"start_time"`
-	EndTime      string      `json:"end_time"`
-	FilesScanned int         `json:"files_scanned"`
-	Errors       []string    `json:"errors,omitempty"`
+	Scores       []jsonScore   `json:"scores"`
+	Aggregates   jsonAggregate `json:"aggregates"`
+	StartTime    string        `json:"start_time"`
+	EndTime      string        `json:"end_time"`
+	FilesScanned int           `json:"files_scanned"`
+	Errors       []string      `json:"errors,omitempty"`
+}
+
+type jsonAggregate struct {
+	Packages []jsonPackageStats `json:"packages"`
+	Overall  jsonOverallStats   `json:"overall"`
+}
+
+type jsonPackageStats struct {
+	ImportPath    string            `json:"import_path"`
+	Name          string            `json:"name"`
+	FunctionCount int               `json:"function_count"`
+	Metrics       []jsonMetricStats `json:"metrics"`
+}
+
+type jsonOverallStats struct {
+	FunctionCount int               `json:"function_count"`
+	Metrics       []jsonMetricStats `json:"metrics"`
+}
+
+type jsonMetricStats struct {
+	MetricID string  `json:"metric_id"`
+	Count    int     `json:"count"`
+	Mean     float64 `json:"mean"`
+	Min      float64 `json:"min"`
+	Max      float64 `json:"max"`
 }
 
 type jsonScore struct {
@@ -74,7 +100,43 @@ func (JSON) Render(w io.Writer, r *domain.Report) error {
 	for _, e := range r.Errors {
 		out.Errors = append(out.Errors, e.Error())
 	}
+	out.Aggregates = buildJSONAggregate(r)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
+}
+
+func buildJSONAggregate(r *domain.Report) jsonAggregate {
+	pkgStats := r.PackageStats()
+	packages := make([]jsonPackageStats, 0, len(pkgStats))
+	for _, ps := range pkgStats {
+		packages = append(packages, jsonPackageStats{
+			ImportPath:    ps.Package.ImportPath,
+			Name:          ps.Package.Name,
+			FunctionCount: ps.FunctionCount,
+			Metrics:       convertMetricStats(ps.Metrics),
+		})
+	}
+	overallCount, overallMetrics := r.OverallStats()
+	return jsonAggregate{
+		Packages: packages,
+		Overall: jsonOverallStats{
+			FunctionCount: overallCount,
+			Metrics:       convertMetricStats(overallMetrics),
+		},
+	}
+}
+
+func convertMetricStats(in []domain.MetricStats) []jsonMetricStats {
+	out := make([]jsonMetricStats, 0, len(in))
+	for _, s := range in {
+		out = append(out, jsonMetricStats{
+			MetricID: s.MetricID,
+			Count:    s.Count,
+			Mean:     s.Mean,
+			Min:      s.Min,
+			Max:      s.Max,
+		})
+	}
+	return out
 }

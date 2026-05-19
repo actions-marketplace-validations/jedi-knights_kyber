@@ -8,6 +8,8 @@ import "github.com/jedi-knights/kyber/internal/domain"
 func DefaultRegistry() *domain.Registry {
 	r := domain.NewRegistry()
 	r.MustRegister(NewCyclomatic())
+	r.MustRegister(NewCognitive())
+	r.MustRegister(NewHalstead())
 	r.MustRegister(NewReadability())
 	r.MustRegister(NewTestability())
 	return r

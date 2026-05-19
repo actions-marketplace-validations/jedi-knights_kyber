@@ -19,7 +19,8 @@ type Text struct{}
 func NewText() *Text { return &Text{} }
 
 // Render writes the report to w. Lines are grouped by source file and
-// sorted by function start position so the output is stable.
+// sorted by function start position. Per-package and overall aggregates
+// are printed after the per-function detail.
 func (Text) Render(w io.Writer, r *domain.Report) error {
 	byFile := groupScoresByFile(r.Scores)
 	files := sortedKeys(byFile)
@@ -42,10 +43,51 @@ func (Text) Render(w io.Writer, r *domain.Report) error {
 		fmt.Fprintln(w)
 	}
 
+	renderAggregates(w, r)
+
 	duration := r.EndTime.Sub(r.StartTime).Round(1e6)
 	fmt.Fprintf(w, "Functions: %d   Findings: %d   Files: %d   Time: %s\n",
 		uniqueFunctionCount(r.Scores), totalFindings, r.FilesScanned, duration)
 	return nil
+}
+
+func renderAggregates(w io.Writer, r *domain.Report) {
+	pkgStats := r.PackageStats()
+	if len(pkgStats) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "[PACKAGE MEANS]")
+	nameWidth := longestPackageName(pkgStats)
+	for _, ps := range pkgStats {
+		cells := renderStatsCells(ps.Metrics)
+		fmt.Fprintf(w, "  %-*s   %s   (%d fns)\n",
+			nameWidth, ps.Package.ImportPath, strings.Join(cells, "   "), ps.FunctionCount)
+	}
+	fmt.Fprintln(w)
+
+	overallCount, overallMetrics := r.OverallStats()
+	fmt.Fprintln(w, "[OVERALL]")
+	fmt.Fprintf(w, "  %s   (%d fns)\n",
+		strings.Join(renderStatsCells(overallMetrics), "   "), overallCount)
+	fmt.Fprintln(w)
+}
+
+func renderStatsCells(stats []domain.MetricStats) []string {
+	out := make([]string, 0, len(stats))
+	for _, s := range stats {
+		out = append(out, fmt.Sprintf("%s=%s", s.MetricID, formatValue(s.Mean)))
+	}
+	return out
+}
+
+func longestPackageName(ps []domain.PackageStats) int {
+	n := 0
+	for _, p := range ps {
+		if len(p.Package.ImportPath) > n {
+			n = len(p.Package.ImportPath)
+		}
+	}
+	return n
 }
 
 func renderScoreCells(scores []domain.Score) []string {
