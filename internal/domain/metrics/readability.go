@@ -16,13 +16,22 @@ type Readability struct{}
 // NewReadability constructs the metric.
 func NewReadability() *Readability { return &Readability{} }
 
-func (Readability) ID() string                { return "readability" }
-func (Readability) Name() string              { return "Readability Score" }
+// ID returns the metric's stable identifier.
+func (Readability) ID() string { return "readability" }
+
+// Name returns the metric's human-readable name.
+func (Readability) Name() string { return "Readability Score" }
+
+// Description returns a one-line description of what the metric measures.
 func (Readability) Description() string {
 	return "Weighted 0–1 score from length, nesting depth, identifier length, and comment density."
 }
+
+// DefaultThreshold reports the score below which a function is flagged.
 func (Readability) DefaultThreshold() float64 { return 0.6 }
-func (Readability) HigherIsWorse() bool       { return false }
+
+// HigherIsWorse reports that smaller readability scores indicate worse code.
+func (Readability) HigherIsWorse() bool { return false }
 
 const (
 	readDefaultMaxLines   = 40
@@ -38,6 +47,8 @@ var triviaIdents = map[string]bool{
 	"_": true, "ok": true, "err": true,
 }
 
+// Analyze computes the weighted readability score for fn and emits a Warning
+// finding when the score falls below the configured threshold.
 func (m Readability) Analyze(ctx context.Context, fn *domain.Function, opts domain.MetricOptions) (domain.Score, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Score{}, err
@@ -127,19 +138,7 @@ func computeIdentSignal(fn *ast.FuncDecl, receiver string, goodMedian int) float
 	if fn == nil || fn.Body == nil {
 		return 1
 	}
-	var lengths []int
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		id, ok := n.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		name := id.Name
-		if triviaIdents[name] || name == receiver {
-			return true
-		}
-		lengths = append(lengths, len(name))
-		return true
-	})
+	lengths := collectIdentLengths(fn.Body, receiver)
 	if len(lengths) == 0 {
 		return 1
 	}
@@ -151,6 +150,23 @@ func computeIdentSignal(fn *ast.FuncDecl, receiver string, goodMedian int) float
 		return 0
 	}
 	return float64(med-1) / float64(goodMedian-1)
+}
+
+func collectIdentLengths(body *ast.BlockStmt, receiver string) []int {
+	var lengths []int
+	ast.Inspect(body, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		name := id.Name
+		if triviaIdents[name] || name == receiver {
+			return true
+		}
+		lengths = append(lengths, len(name))
+		return true
+	})
+	return lengths
 }
 
 // computeCommentSignal returns comment-line density / 0.2, capped at 1. A

@@ -15,12 +15,12 @@ import (
 
 // Config is the resolved configuration for one kyber run.
 type Config struct {
-	Paths           []string                 `toml:"paths"`
-	Exclude         []string                 `toml:"exclude"`
-	Format          string                   `toml:"format"`
-	FailOnThreshold bool                     `toml:"fail_on_threshold"`
-	Verbose         bool                     `toml:"verbose"`
-	Metrics         map[string]MetricConfig  `toml:"metrics"`
+	Paths           []string                `toml:"paths"`
+	Exclude         []string                `toml:"exclude"`
+	Format          string                  `toml:"format"`
+	FailOnThreshold bool                    `toml:"fail_on_threshold"`
+	Verbose         bool                    `toml:"verbose"`
+	Metrics         map[string]MetricConfig `toml:"metrics"`
 }
 
 // MetricConfig is the TOML representation of one metric's settings. Enabled
@@ -28,8 +28,8 @@ type Config struct {
 // enabled key is considered on); Threshold of 0 means "use the metric's
 // DefaultThreshold". Params holds extra knobs (max_params, weight_*, ...).
 type MetricConfig struct {
-	Enabled   *bool    `toml:"enabled"`
-	Threshold float64  `toml:"threshold"`
+	Enabled   *bool   `toml:"enabled"`
+	Threshold float64 `toml:"threshold"`
 
 	// All other keys are captured into Params via the catch-all toml unmarshal
 	// step (see Load). Not a struct field on its own.
@@ -88,21 +88,22 @@ func loadTOML(path string, cfg *Config) error {
 		cfg.Metrics = make(map[string]MetricConfig)
 	}
 	for id, sub := range rawMetrics {
-		subMap, ok := sub.(map[string]any)
-		if !ok {
-			continue
+		if subMap, ok := sub.(map[string]any); ok {
+			cfg.Metrics[id] = mergeMetricParams(cfg.Metrics[id], subMap)
 		}
-		mc := cfg.Metrics[id]
-		mc.Params = make(map[string]any)
-		for k, v := range subMap {
-			if k == "enabled" || k == "threshold" {
-				continue
-			}
-			mc.Params[k] = v
-		}
-		cfg.Metrics[id] = mc
 	}
 	return nil
+}
+
+func mergeMetricParams(mc MetricConfig, subMap map[string]any) MetricConfig {
+	mc.Params = make(map[string]any)
+	for k, v := range subMap {
+		if k == "enabled" || k == "threshold" {
+			continue
+		}
+		mc.Params[k] = v
+	}
+	return mc
 }
 
 // applyEnv overlays KYBER_* environment variables onto cfg. Missing or

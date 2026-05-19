@@ -15,14 +15,18 @@ func newListMetricsCmd() *cobra.Command {
 		Short: "List every registered metric and its default threshold.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tDEFAULT\tDIRECTION\tDESCRIPTION")
+			if _, err := fmt.Fprintln(w, "ID\tNAME\tDEFAULT\tDIRECTION\tDESCRIPTION"); err != nil {
+				return err
+			}
 			for _, m := range metrics.DefaultRegistry().All() {
 				dir := "higher is worse"
 				if !m.HigherIsWorse() {
 					dir = "lower is worse"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%g\t%s\t%s\n",
-					m.ID(), m.Name(), m.DefaultThreshold(), dir, m.Description())
+				if _, err := fmt.Fprintf(w, "%s\t%s\t%g\t%s\t%s\n",
+					m.ID(), m.Name(), m.DefaultThreshold(), dir, m.Description()); err != nil {
+					return err
+				}
 			}
 			return w.Flush()
 		},

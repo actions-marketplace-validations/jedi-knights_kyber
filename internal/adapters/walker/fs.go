@@ -66,7 +66,15 @@ func walkOne(ctx context.Context, root string, opts ports.WalkOptions) ([]string
 	}
 
 	var out []string
-	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	walkFn := makeWalkFn(ctx, dir, recursive, opts, &out)
+	if err := filepath.WalkDir(dir, walkFn); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func makeWalkFn(ctx context.Context, dir string, recursive bool, opts ports.WalkOptions, out *[]string) fs.WalkDirFunc {
+	return func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -74,23 +82,23 @@ func walkOne(ctx context.Context, root string, opts ports.WalkOptions) ([]string
 			return ctxErr
 		}
 		if d.IsDir() {
-			if !recursive && path != dir {
-				return filepath.SkipDir
-			}
-			if dirExcluded(path, dir, opts.ExcludeGlobs) {
-				return filepath.SkipDir
-			}
-			return nil
+			return walkDirEntry(path, dir, recursive, opts)
 		}
 		if shouldInclude(path, dir, opts) {
-			out = append(out, path)
+			*out = append(*out, path)
 		}
 		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	return out, nil
+}
+
+func walkDirEntry(path, dir string, recursive bool, opts ports.WalkOptions) error {
+	if !recursive && path != dir {
+		return filepath.SkipDir
+	}
+	if dirExcluded(path, dir, opts.ExcludeGlobs) {
+		return filepath.SkipDir
+	}
+	return nil
 }
 
 // resolveRoot strips a trailing "/..." (or "..." alone) and returns the
@@ -166,26 +174,33 @@ func globMatch(pattern, name string) bool {
 func matchParts(pattern, name []string) bool {
 	for len(pattern) > 0 {
 		if pattern[0] == "**" {
-			if len(pattern) == 1 {
-				return true
-			}
-			rest := pattern[1:]
-			for i := 0; i <= len(name); i++ {
-				if matchParts(rest, name[i:]) {
-					return true
-				}
-			}
-			return false
+			return matchDoubleStar(pattern[1:], name)
 		}
-		if len(name) == 0 {
-			return false
-		}
-		ok, err := filepath.Match(pattern[0], name[0])
-		if err != nil || !ok {
+		if !matchSegment(pattern[0], name) {
 			return false
 		}
 		pattern = pattern[1:]
 		name = name[1:]
 	}
 	return len(name) == 0
+}
+
+func matchDoubleStar(rest, name []string) bool {
+	if len(rest) == 0 {
+		return true
+	}
+	for i := 0; i <= len(name); i++ {
+		if matchParts(rest, name[i:]) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchSegment(pat string, name []string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	ok, err := filepath.Match(pat, name[0])
+	return err == nil && ok
 }

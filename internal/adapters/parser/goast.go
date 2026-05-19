@@ -161,23 +161,27 @@ func extractInterfaces(files []*ast.File) map[string]*ast.InterfaceType {
 func extractGlobals(files []*ast.File) map[string]token.Pos {
 	out := make(map[string]token.Pos)
 	for _, file := range files {
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
+		collectGlobalsFromFile(file, out)
+	}
+	return out
+}
+
+func collectGlobalsFromFile(file *ast.File, out map[string]token.Pos) {
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
 				continue
 			}
-			for _, spec := range gen.Specs {
-				vs, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for _, name := range vs.Names {
-					out[name.Name] = name.Pos()
-				}
+			for _, name := range vs.Names {
+				out[name.Name] = name.Pos()
 			}
 		}
 	}
-	return out
 }
 
 func packageName(files []*ast.File) string {

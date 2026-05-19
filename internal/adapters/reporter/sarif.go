@@ -58,10 +58,10 @@ type sarifDefaultLevel struct {
 }
 
 type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
-	Level     string          `json:"level"`
+	RuleID    string           `json:"ruleId"`
+	Level     string           `json:"level"`
 	Message   sarifMultiformat `json:"message"`
-	Locations []sarifLocation `json:"locations"`
+	Locations []sarifLocation  `json:"locations"`
 }
 
 type sarifLocation struct {

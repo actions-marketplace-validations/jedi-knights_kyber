@@ -9,11 +9,11 @@ import (
 // fakeMetric is a minimal Metric used only for registry tests.
 type fakeMetric struct{ id string }
 
-func (f fakeMetric) ID() string                                                  { return f.id }
-func (f fakeMetric) Name() string                                                { return f.id }
-func (f fakeMetric) Description() string                                         { return "fake " + f.id }
-func (f fakeMetric) DefaultThreshold() float64                                   { return 0 }
-func (f fakeMetric) HigherIsWorse() bool                                         { return true }
+func (f fakeMetric) ID() string                { return f.id }
+func (f fakeMetric) Name() string              { return f.id }
+func (f fakeMetric) Description() string       { return "fake " + f.id }
+func (f fakeMetric) DefaultThreshold() float64 { return 0 }
+func (f fakeMetric) HigherIsWorse() bool       { return true }
 func (f fakeMetric) Analyze(context.Context, *Function, MetricOptions) (Score, error) {
 	return Score{MetricID: f.id}, nil
 }

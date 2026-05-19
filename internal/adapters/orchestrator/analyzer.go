@@ -29,8 +29,8 @@ func New(walker ports.FileWalker, parser ports.SourceParser, registry *domain.Re
 type Options struct {
 	Roots          []string
 	WalkOpts       ports.WalkOptions
-	EnabledMetrics []string                         // empty = all registered
-	MetricOpts     map[string]domain.MetricOptions  // keyed by metric ID
+	EnabledMetrics []string                        // empty = all registered
+	MetricOpts     map[string]domain.MetricOptions // keyed by metric ID
 }
 
 // Analyze walks the roots, parses every discovered file, and applies every

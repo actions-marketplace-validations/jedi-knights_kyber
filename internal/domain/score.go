@@ -4,6 +4,7 @@ package domain
 // own severity vocabulary (e.g. SARIF's "note"/"warning"/"error").
 type Severity int
 
+// Severity levels in ascending order of seriousness.
 const (
 	SeverityInfo Severity = iota
 	SeverityWarning

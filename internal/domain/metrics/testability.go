@@ -17,13 +17,22 @@ type Testability struct{}
 // NewTestability constructs the metric.
 func NewTestability() *Testability { return &Testability{} }
 
-func (Testability) ID() string                { return "testability" }
-func (Testability) Name() string              { return "Testability Score" }
+// ID returns the metric's stable identifier.
+func (Testability) ID() string { return "testability" }
+
+// Name returns the metric's human-readable name.
+func (Testability) Name() string { return "Testability Score" }
+
+// Description returns a one-line description of what the metric measures.
 func (Testability) Description() string {
 	return "Weighted 0–1 score from parameter count, side effects, interface params, and length."
 }
+
+// DefaultThreshold reports the score below which a function is flagged.
 func (Testability) DefaultThreshold() float64 { return 0.6 }
-func (Testability) HigherIsWorse() bool       { return false }
+
+// HigherIsWorse reports that smaller testability scores indicate worse code.
+func (Testability) HigherIsWorse() bool { return false }
 
 const (
 	testDefaultMaxParams = 5
@@ -43,6 +52,8 @@ var sideEffectPackages = map[string]bool{
 	"fmt":  true,
 }
 
+// Analyze computes the weighted testability score for fn and emits a Warning
+// finding when the score falls below the configured threshold.
 func (m Testability) Analyze(ctx context.Context, fn *domain.Function, opts domain.MetricOptions) (domain.Score, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Score{}, err
@@ -87,28 +98,36 @@ func computeSideEffectSignal(fn *domain.Function) float64 {
 	if fn.FuncDecl == nil || fn.FuncDecl.Body == nil {
 		return 1
 	}
-	globals := map[string]bool{}
-	if fn.Package != nil {
-		for name := range fn.Package.Globals {
-			globals[name] = true
-		}
-	}
-
+	globals := collectGlobalNames(fn.Package)
 	count := 0
 	ast.Inspect(fn.FuncDecl.Body, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.CallExpr:
-			if isSideEffectCall(x) {
-				count++
-			}
-		case *ast.Ident:
-			if globals[x.Name] {
-				count++
-			}
+		if nodeIsSideEffect(n, globals) {
+			count++
 		}
 		return true
 	})
 	return signalRatio(count, testSideEffectMax)
+}
+
+func collectGlobalNames(pkg *domain.Package) map[string]bool {
+	globals := map[string]bool{}
+	if pkg == nil {
+		return globals
+	}
+	for name := range pkg.Globals {
+		globals[name] = true
+	}
+	return globals
+}
+
+func nodeIsSideEffect(n ast.Node, globals map[string]bool) bool {
+	switch x := n.(type) {
+	case *ast.CallExpr:
+		return isSideEffectCall(x)
+	case *ast.Ident:
+		return globals[x.Name]
+	}
+	return false
 }
 
 func isSideEffectCall(call *ast.CallExpr) bool {

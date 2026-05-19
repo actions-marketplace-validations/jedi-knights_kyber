@@ -21,14 +21,20 @@ type Cyclomatic struct{}
 // NewCyclomatic constructs the metric.
 func NewCyclomatic() *Cyclomatic { return &Cyclomatic{} }
 
-func (Cyclomatic) ID() string          { return "cyclomatic" }
-func (Cyclomatic) Name() string        { return "Cyclomatic Complexity" }
+// ID returns the metric's stable identifier.
+func (Cyclomatic) ID() string { return "cyclomatic" }
+
+// Name returns the metric's human-readable name.
+func (Cyclomatic) Name() string { return "Cyclomatic Complexity" }
+
+// Description returns a one-line description of what the metric measures.
 func (Cyclomatic) Description() string { return "McCabe decision-point count." }
 
 // DefaultThreshold of 7 matches the project-wide gocyclo configuration in
 // rules/go-conventions.md (functions must be ≤ 7).
 func (Cyclomatic) DefaultThreshold() float64 { return 7 }
 
+// HigherIsWorse reports that larger complexity values indicate worse code.
 func (Cyclomatic) HigherIsWorse() bool { return true }
 
 // Analyze counts decision points in fn.FuncDecl.Body and returns the score.
@@ -68,26 +74,27 @@ func computeComplexity(fn *ast.FuncDecl) int {
 	}
 	complexity := 1
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt:
+		if nodeAddsPath(n) {
 			complexity++
-		case *ast.CaseClause:
-			// CaseClause is used for both switch and type switch; the default
-			// clause has nil List and does not add a path.
-			if len(x.List) > 0 {
-				complexity++
-			}
-		case *ast.CommClause:
-			// Comm clause is a case in a select statement; default has nil Comm.
-			if x.Comm != nil {
-				complexity++
-			}
-		case *ast.BinaryExpr:
-			if x.Op == token.LAND || x.Op == token.LOR {
-				complexity++
-			}
 		}
 		return true
 	})
 	return complexity
+}
+
+func nodeAddsPath(n ast.Node) bool {
+	switch x := n.(type) {
+	case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt:
+		return true
+	case *ast.CaseClause:
+		// CaseClause is used for both switch and type switch; the default
+		// clause has nil List and does not add a path.
+		return len(x.List) > 0
+	case *ast.CommClause:
+		// Comm clause is a case in a select statement; default has nil Comm.
+		return x.Comm != nil
+	case *ast.BinaryExpr:
+		return x.Op == token.LAND || x.Op == token.LOR
+	}
+	return false
 }
