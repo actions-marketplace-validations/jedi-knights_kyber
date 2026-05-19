@@ -53,6 +53,43 @@ func TestTestability_InterfaceParamScoresHigher(t *testing.T) {
 	}
 }
 
+func TestTestability_PureFmtIsNotSideEffect(t *testing.T) {
+	// Arrange — PureFmt calls only fmt.Sprintf/Errorf; IOFmt calls Println/Printf.
+	// Same param count, same interface fraction, comparable length — the only
+	// difference is the side-effect class of the fmt calls used.
+	funcs := parseFixture(t, "fmtcalls")
+	pure := findFunc(t, funcs, "PureFmt")
+	io := findFunc(t, funcs, "IOFmt")
+	opts := domain.MetricOptions{
+		Params: map[string]any{
+			"weight_params":       0.0,
+			"weight_side_effects": 1.0,
+			"weight_interfaces":   0.0,
+			"weight_length":       0.0,
+		},
+	}
+
+	// Act
+	pureScore, err := NewTestability().Analyze(context.Background(), pure, opts)
+	if err != nil {
+		t.Fatalf("Analyze pure: %v", err)
+	}
+	ioScore, err := NewTestability().Analyze(context.Background(), io, opts)
+	if err != nil {
+		t.Fatalf("Analyze io: %v", err)
+	}
+
+	// Assert — with only the side-effect signal weighted, PureFmt should score
+	// at the ceiling (no side effects detected) and IOFmt should score strictly
+	// lower (Println + Printf are real I/O).
+	if pureScore.Value != 1 {
+		t.Errorf("PureFmt side-effect signal = %v, want 1.0 (Sprintf/Errorf are pure)", pureScore.Value)
+	}
+	if ioScore.Value >= pureScore.Value {
+		t.Errorf("IOFmt %v should score below PureFmt %v", ioScore.Value, pureScore.Value)
+	}
+}
+
 func TestTestability_GlobalAccessIsSideEffect(t *testing.T) {
 	// BumpCounter reads and writes a package-level global PackageCounter,
 	// which should be detected via Package.Globals and contribute to the

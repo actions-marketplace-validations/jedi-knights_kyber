@@ -271,7 +271,7 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **Formula**: `(w_p·params + w_se·sideEffects + w_iface·interfaces + w_len·length) / sum(weights)`.
 
-**How to read it**: 1.0 is ideal; below 0.6 flags. This metric is heuristic, not from published literature — closest published kin is Bruntink & van Deursen (2006), but that operates at class level and doesn't translate to Go functions. The "side effect" detection treats every `fmt` call as observable I/O, including pure `fmt.Sprintf`/`fmt.Errorf` — a known false positive. Use this as a "watch the trend" signal rather than a strict gate.
+**How to read it**: 1.0 is ideal; below 0.6 flags. This metric is heuristic, not from published literature — closest published kin is Bruntink & van Deursen (2006), but that operates at class level and doesn't translate to Go functions. Pure `fmt` calls (`Sprintf`, `Errorf`, `Sprint`, `Sprintln`, `Append*`, `Sscan*`) are excluded from the side-effect count; only `Println`/`Printf`/`Fprint*` and other observably-impure functions are counted. Use this as a "watch the trend" signal rather than a strict gate.
 
 ## Reading the report
 

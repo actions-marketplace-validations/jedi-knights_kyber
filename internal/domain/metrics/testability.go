@@ -52,6 +52,19 @@ var sideEffectPackages = map[string]bool{
 	"fmt":  true,
 }
 
+// pureCallNames excludes individual functions from a side-effect package
+// when they are observably pure (return a value, perform no I/O). Without
+// this, every fmt.Sprintf or fmt.Errorf call would count against testability
+// the same way fmt.Println does — masking the actual untestable functions.
+var pureCallNames = map[string]map[string]bool{
+	"fmt": {
+		"Sprint": true, "Sprintln": true, "Sprintf": true,
+		"Errorf": true,
+		"Append": true, "Appendln": true, "Appendf": true,
+		"Sscan": true, "Sscanln": true, "Sscanf": true,
+	},
+}
+
 // Analyze computes the weighted testability score for fn and emits a Warning
 // finding when the score falls below the configured threshold.
 func (m Testability) Analyze(ctx context.Context, fn *domain.Function, opts domain.MetricOptions) (domain.Score, error) {
@@ -139,7 +152,13 @@ func isSideEffectCall(call *ast.CallExpr) bool {
 	if !ok {
 		return false
 	}
-	return sideEffectPackages[pkg.Name]
+	if !sideEffectPackages[pkg.Name] {
+		return false
+	}
+	if pure, ok := pureCallNames[pkg.Name]; ok && pure[sel.Sel.Name] {
+		return false
+	}
+	return true
 }
 
 // computeInterfaceSignal returns the fraction of parameters whose declared
