@@ -12,6 +12,9 @@ import (
 	"github.com/jedi-knights/kyber/internal/domain"
 )
 
+// maxLineWidth is the hard upper bound on any output line in the text format.
+const maxLineWidth = 80
+
 // Text renders a human-readable per-file table.
 type Text struct{}
 
@@ -37,6 +40,22 @@ var shortLabel = map[string]string{
 	"testability":     "tst",
 }
 
+// fullName maps metric IDs to their human-readable names for the legend.
+var fullName = map[string]string{
+	"maintainability": "Maintainability Index",
+	"cognitive":       "Cognitive Complexity",
+	"cyclomatic":      "Cyclomatic Complexity",
+	"difficulty":      "Halstead Difficulty",
+	"effort":          "Halstead Effort",
+	"funclen":         "Function Length",
+	"halstead":        "Halstead Volume",
+	"nesting":         "Maximum Nesting Depth",
+	"npath":           "NPath Complexity",
+	"readability":     "Readability Score",
+	"returns":         "Return Count",
+	"testability":     "Testability Score",
+}
+
 // labelFor returns the short column label for a metric ID, falling back
 // to the first 4 lowercase chars when the ID is unknown.
 func labelFor(id string) string {
@@ -58,24 +77,36 @@ func (Text) Render(w io.Writer, r *domain.Report) error {
 
 	metricIDs := metricOrder(metricIDsInReport(r.Scores))
 
+	renderLegend(w, metricIDs)
+
 	totalFindings := 0
 	for _, file := range files {
 		scoresInFile := byFile[file]
 		byFn := groupByFunctionName(scoresInFile)
 		fnNames := sortedFunctionNames(byFn, scoresInFile)
-		nameWidth := longestName(fnNames)
+		nameWidth := cappedNameWidth(fnNames)
 		widths := columnWidths(metricIDs, byFn)
 
-		fmt.Fprintln(w, file)
-		renderHeader(w, nameWidth, metricIDs, widths)
-		for _, name := range fnNames {
-			scores := byFn[name]
-			renderFunctionRow(w, name, nameWidth, scores, metricIDs, widths)
-			for _, s := range scores {
-				totalFindings += len(s.Findings)
+		panels := splitIntoPanels(nameWidth, metricIDs, widths)
+		for pi, panel := range panels {
+			if len(panels) > 1 {
+				suffix := fmt.Sprintf("  [%d/%d]", pi+1, len(panels))
+				fmt.Fprintf(w, "%s%s\n", truncatePath(file, maxLineWidth-len(suffix)), suffix)
+			} else {
+				fmt.Fprintln(w, truncatePath(file, maxLineWidth))
 			}
+			renderHeader(w, nameWidth, panel, widths)
+			for _, name := range fnNames {
+				scores := byFn[name]
+				renderFunctionRow(w, name, nameWidth, scores, panel, widths)
+				if pi == 0 {
+					for _, s := range scores {
+						totalFindings += len(s.Findings)
+					}
+				}
+			}
+			fmt.Fprintln(w)
 		}
-		fmt.Fprintln(w)
 	}
 
 	renderAggregates(w, r, metricIDs)
@@ -103,7 +134,11 @@ func renderFunctionRow(w io.Writer, name string, nameWidth int, scores []domain.
 	for _, s := range scores {
 		byID[s.MetricID] = s
 	}
-	fmt.Fprintf(w, "  %-*s", nameWidth, name)
+	display := name
+	if len(display) > nameWidth {
+		display = display[:nameWidth-3] + "..."
+	}
+	fmt.Fprintf(w, "  %-*s", nameWidth, display)
 	for _, id := range metricIDs {
 		s, ok := byID[id]
 		cell := ""
@@ -118,6 +153,53 @@ func renderFunctionRow(w io.Writer, name string, nameWidth int, scores []domain.
 	fmt.Fprintln(w)
 }
 
+// renderLegend prints a two-column key mapping each short label to its full
+// metric name, followed by a note explaining the ! threshold marker. Only
+// metrics present in the report are shown. Nothing is printed for an empty
+// metric list.
+func renderLegend(w io.Writer, metricIDs []string) {
+	if len(metricIDs) == 0 {
+		return
+	}
+	entries := buildLegendEntries(metricIDs)
+	maxWidth := maxLegendEntry(entries)
+	twoPerLine := 2+maxWidth+2+maxWidth <= maxLineWidth
+	fmt.Fprintln(w, "[LEGEND]")
+	for i := 0; i < len(entries); {
+		if twoPerLine && i+1 < len(entries) {
+			fmt.Fprintf(w, "  %-*s  %s\n", maxWidth, entries[i], entries[i+1])
+			i += 2
+		} else {
+			fmt.Fprintf(w, "  %s\n", entries[i])
+			i++
+		}
+	}
+	fmt.Fprintln(w, "  ! value crossed its configured threshold")
+	fmt.Fprintln(w)
+}
+
+func buildLegendEntries(metricIDs []string) []string {
+	entries := make([]string, 0, len(metricIDs))
+	for _, id := range metricIDs {
+		name := fullName[id]
+		if name == "" {
+			name = id
+		}
+		entries = append(entries, fmt.Sprintf("%s=%s", labelFor(id), name))
+	}
+	return entries
+}
+
+func maxLegendEntry(entries []string) int {
+	n := 0
+	for _, e := range entries {
+		if len(e) > n {
+			n = len(e)
+		}
+	}
+	return n
+}
+
 func renderAggregates(w io.Writer, r *domain.Report, metricIDs []string) {
 	pkgStats := r.PackageStats()
 	if len(pkgStats) == 0 {
@@ -127,15 +209,33 @@ func renderAggregates(w io.Writer, r *domain.Report, metricIDs []string) {
 	nameWidth := longestPackageName(pkgStats)
 	for _, ps := range pkgStats {
 		cells := renderStatsCells(ps.Metrics, metricIDs)
-		fmt.Fprintf(w, "  %-*s   %s   (%d fns)\n",
+		single := fmt.Sprintf("  %-*s   %s   (%d fns)",
 			nameWidth, ps.Package.ImportPath, strings.Join(cells, " "), ps.FunctionCount)
+		if len(single) <= maxLineWidth {
+			fmt.Fprintln(w, single)
+		} else {
+			suffix := fmt.Sprintf("  (%d fns)", ps.FunctionCount)
+			path := truncatePath(ps.Package.ImportPath, maxLineWidth-2-len(suffix))
+			fmt.Fprintf(w, "  %s%s\n", path, suffix)
+			for _, l := range wrapStatCells(cells, "    ") {
+				fmt.Fprintln(w, l)
+			}
+		}
 	}
 	fmt.Fprintln(w)
 
 	overallCount, overallMetrics := r.OverallStats()
-	fmt.Fprintln(w, "[OVERALL]")
-	fmt.Fprintf(w, "  %s   (%d fns)\n",
-		strings.Join(renderStatsCells(overallMetrics, metricIDs), " "), overallCount)
+	cells := renderStatsCells(overallMetrics, metricIDs)
+	single := fmt.Sprintf("  %s   (%d fns)", strings.Join(cells, " "), overallCount)
+	if len(single) <= maxLineWidth {
+		fmt.Fprintln(w, "[OVERALL]")
+		fmt.Fprintln(w, single)
+	} else {
+		fmt.Fprintf(w, "[OVERALL]  (%d fns)\n", overallCount)
+		for _, l := range wrapStatCells(cells, "  ") {
+			fmt.Fprintln(w, l)
+		}
+	}
 	fmt.Fprintln(w)
 }
 
@@ -219,6 +319,76 @@ func longestPackageName(ps []domain.PackageStats) int {
 		}
 	}
 	return n
+}
+
+// cappedNameWidth returns the column width for function names, capped so at
+// least one metric column can still fit in maxLineWidth.
+func cappedNameWidth(names []string) int {
+	n := longestName(names)
+	const cap = maxLineWidth - 2 - 3 // 2-char indent + narrowest possible metric col
+	if n > cap {
+		return cap
+	}
+	return n
+}
+
+// truncatePath trims path to maxLen characters, appending "..." when truncated.
+func truncatePath(path string, maxLen int) string {
+	if len(path) <= maxLen {
+		return path
+	}
+	if maxLen <= 3 {
+		return path[:maxLen]
+	}
+	return path[:maxLen-3] + "..."
+}
+
+// splitIntoPanels partitions metricIDs into groups such that each panel's
+// rendered row (2-char indent + nameWidth + metric columns) fits within
+// maxLineWidth. At least one metric is always placed in each panel.
+func splitIntoPanels(nameWidth int, metricIDs []string, widths map[string]int) [][]string {
+	base := 2 + nameWidth
+	var panels [][]string
+	var panel []string
+	used := base
+	for _, id := range metricIDs {
+		colWidth := 1 + widths[id]
+		if len(panel) > 0 && used+colWidth > maxLineWidth {
+			panels = append(panels, panel)
+			panel = nil
+			used = base
+		}
+		panel = append(panel, id)
+		used += colWidth
+	}
+	if len(panel) > 0 {
+		panels = append(panels, panel)
+	}
+	return panels
+}
+
+// wrapStatCells packs key=value cells onto lines prefixed by indent, breaking
+// before a cell would push the line past maxLineWidth. Each cell is placed on
+// its own line if it alone exceeds the limit.
+func wrapStatCells(cells []string, indent string) []string {
+	var lines []string
+	line := indent
+	for _, c := range cells {
+		candidate := c
+		if line != indent {
+			candidate = " " + c
+		}
+		if len(line)+len(candidate) > maxLineWidth && line != indent {
+			lines = append(lines, line)
+			line = indent + c
+		} else {
+			line += candidate
+		}
+	}
+	if line != indent {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func formatValue(v float64) string {

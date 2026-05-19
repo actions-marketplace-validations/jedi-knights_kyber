@@ -46,6 +46,24 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+brews:
+  - name: kyber
+    directory: Formula
+    repository:
+      owner: jedi-knights
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser-bot@users.noreply.github.com
+    homepage: "https://github.com/jedi-knights/kyber"
+    description: "A function-level Go code-quality analyzer — cyclomatic complexity, testability, readability, and more."
+    license: "MIT"
+    install: |
+      bin.install "kyber"
+    test: |
+      system "#{bin}/kyber", "version"
+
 # Changelog is managed by go-semantic-release (CHANGELOG.md).
 # GoReleaser's built-in changelog is disabled to avoid duplication.
 changelog:

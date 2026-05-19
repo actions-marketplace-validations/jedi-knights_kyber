@@ -185,6 +185,159 @@ func TestText_RendersAlignedTable(t *testing.T) {
 	}
 }
 
+// makeAllMetricsReport builds a report with all 12 metrics and large values
+// designed to produce table rows that exceed 80 characters without the 80-char
+// boundary enforcement, exercising path truncation, multi-panel splitting, and
+// aggregate wrapping.
+func makeAllMetricsReport(t *testing.T, file, importPath string) *domain.Report {
+	t.Helper()
+	fset := token.NewFileSet()
+	const src = `package x
+func ParseFiles() {}
+`
+	f, err := parser.ParseFile(fset, file, src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	pkg := &domain.Package{Name: "x", ImportPath: importPath, FileSet: fset}
+	fn := &domain.Function{
+		Name:     "GoAST.ParseFiles",
+		Package:  pkg,
+		File:     file,
+		FuncDecl: f.Decls[0].(*ast.FuncDecl),
+		FileSet:  fset,
+	}
+	flag := []domain.Finding{{Severity: domain.SeverityWarning, Line: 2, Message: "flagged"}}
+	return &domain.Report{
+		StartTime:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndTime:      time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC),
+		FilesScanned: 1,
+		Scores: []domain.Score{
+			{MetricID: "maintainability", Function: fn, Value: 51.03, Findings: flag},
+			{MetricID: "cognitive", Function: fn, Value: 7},
+			{MetricID: "cyclomatic", Function: fn, Value: 5},
+			{MetricID: "difficulty", Function: fn, Value: 20.14, Findings: flag},
+			{MetricID: "effort", Function: fn, Value: 22623.65, Findings: flag},
+			{MetricID: "funclen", Function: fn, Value: 18},
+			{MetricID: "halstead", Function: fn, Value: 698.81},
+			{MetricID: "nesting", Function: fn, Value: 3},
+			{MetricID: "npath", Function: fn, Value: 12},
+			{MetricID: "readability", Function: fn, Value: 0.31, Findings: flag},
+			{MetricID: "returns", Function: fn, Value: 4},
+			{MetricID: "testability", Function: fn, Value: 0.53, Findings: flag},
+		},
+	}
+}
+
+func TestText_LegendShowsMetricNamesAndBangNote(t *testing.T) {
+	// Arrange — report with cyclomatic and readability active.
+	r := makeReport(t)
+
+	// Act
+	var buf bytes.Buffer
+	if err := NewText().Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := buf.String()
+
+	// Assert — full names for both active metrics must appear in the legend.
+	if !strings.Contains(s, "Cyclomatic Complexity") {
+		t.Errorf("legend missing 'Cyclomatic Complexity': %q", s)
+	}
+	if !strings.Contains(s, "Readability Score") {
+		t.Errorf("legend missing 'Readability Score': %q", s)
+	}
+	// The '!' marker explanation must appear.
+	if !strings.Contains(s, "threshold") {
+		t.Errorf("legend missing threshold explanation: %q", s)
+	}
+	// Legend must appear before the first file header.
+	if strings.Index(s, "Cyclomatic Complexity") >= strings.Index(s, "x/x.go") {
+		t.Errorf("legend should appear before file section")
+	}
+}
+
+func TestText_LongFilePathTruncated(t *testing.T) {
+	// Arrange — 82-char path, which exceeds the 80-char limit.
+	longPath := "internal/adapters/parser/very_long_directory/even_longer_file_name_for_testing.go"
+	r := makeAllMetricsReport(t, longPath, "x")
+
+	// Act
+	var buf bytes.Buffer
+	if err := NewText().Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	// Assert — every line must fit, and the file-path line must show truncation.
+	lines := strings.Split(buf.String(), "\n")
+	for i, line := range lines {
+		if len(line) > 80 {
+			t.Errorf("line %d exceeds 80 chars (%d): %q", i+1, len(line), line)
+		}
+	}
+	if !strings.Contains(buf.String(), "...") {
+		t.Errorf("expected truncated path with '...' in output:\n%s", buf.String())
+	}
+}
+
+func TestText_NoOutputLineExceeds80Chars(t *testing.T) {
+	// Arrange
+	r := makeAllMetricsReport(t, "x/wide.go", "x")
+
+	// Act
+	var buf bytes.Buffer
+	if err := NewText().Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	// Assert
+	for i, line := range strings.Split(buf.String(), "\n") {
+		if len(line) > 80 {
+			t.Errorf("line %d exceeds 80 chars (%d): %q", i+1, len(line), line)
+		}
+	}
+}
+
+func TestText_MultiPanelRepeatsHeader(t *testing.T) {
+	// Arrange
+	r := makeAllMetricsReport(t, "x/wide.go", "x")
+
+	// Act
+	var buf bytes.Buffer
+	if err := NewText().Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := buf.String()
+
+	// Assert — wide output must be split into at least two panels.
+	if !strings.Contains(s, "[1/") {
+		t.Errorf("expected multi-panel marker [1/N] in output:\n%s", s)
+	}
+	if !strings.Contains(s, "[2/") {
+		t.Errorf("expected multi-panel marker [2/N] in output:\n%s", s)
+	}
+}
+
+func TestText_AggregateWrapsAt80(t *testing.T) {
+	// Arrange — long import path forces aggregate lines to exceed 80 chars
+	// without wrapping.
+	r := makeAllMetricsReport(t, "x/wide.go",
+		"github.com/jedi-knights/kyber/internal/adapters/parser")
+
+	// Act
+	var buf bytes.Buffer
+	if err := NewText().Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	// Assert
+	for i, line := range strings.Split(buf.String(), "\n") {
+		if len(line) > 80 {
+			t.Errorf("line %d exceeds 80 chars (%d): %q", i+1, len(line), line)
+		}
+	}
+}
+
 func TestJSON_RoundtripsScores(t *testing.T) {
 	var buf bytes.Buffer
 	if err := NewJSON().Render(&buf, makeReport(t)); err != nil {

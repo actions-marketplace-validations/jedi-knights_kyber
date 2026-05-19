@@ -133,20 +133,20 @@ kyber analyze --metric=cyclomatic --metric=readability ./...
 
 ## Metrics
 
-| ID | What it measures | Default threshold | Direction |
-|---|---|---|---|
-| `cyclomatic` | McCabe decision-point count — independent paths through a function | `> 7` | higher is worse |
-| `cognitive` | SonarSource Cognitive Complexity — control flow weighted by nesting | `> 15` | higher is worse |
-| `npath` | NPath complexity — number of acyclic execution paths (multiplicative) | `> 200` | higher is worse |
-| `halstead` | Halstead Volume — token count weighted by vocabulary size | `> 1000` | higher is worse |
-| `difficulty` | Halstead Difficulty — `(n1/2) · (N2/n2)` | `> 15` | higher is worse |
-| `effort` | Halstead Effort — Difficulty × Volume | `> 10000` | higher is worse |
-| `maintainability` | Microsoft Maintainability Index — composite of Volume, cyclomatic, and LOC | `< 65` | lower is worse |
-| `nesting` | Maximum block nesting depth in the function body | `> 4` | higher is worse |
-| `funclen` | Non-blank, non-comment line count of the function body | `> 40` | higher is worse |
-| `returns` | Number of `return` statements anywhere in the function body | `> 4` | higher is worse |
-| `readability` | Weighted 0–1 score from length, nesting, identifier length, and comment density | `< 0.6` | lower is worse |
-| `testability` | Weighted 0–1 score from parameter count, side effects, interface parameters, and length | `< 0.6` | lower is worse |
+| ID | What it measures | Default threshold | Direction | Reference |
+|---|---|---|---|---|
+| `cyclomatic` | McCabe decision-point count — independent paths through a function | `> 7` | higher is worse | [McCabe 1976](https://en.wikipedia.org/wiki/Cyclomatic_complexity) |
+| `cognitive` | SonarSource Cognitive Complexity — control flow weighted by nesting | `> 15` | higher is worse | [Campbell 2018](https://www.sonarsource.com/docs/CognitiveComplexity.pdf) |
+| `npath` | NPath complexity — number of acyclic execution paths (multiplicative) | `> 200` | higher is worse | [Nejmeh 1988](https://dl.acm.org/doi/10.1145/42372.42379) |
+| `halstead` | Halstead Volume — token count weighted by vocabulary size | `> 1000` | higher is worse | [Halstead 1977](https://en.wikipedia.org/wiki/Halstead_complexity_measures) |
+| `difficulty` | Halstead Difficulty — `(n1/2) · (N2/n2)` | `> 15` | higher is worse | [Halstead 1977](https://en.wikipedia.org/wiki/Halstead_complexity_measures) |
+| `effort` | Halstead Effort — Difficulty × Volume | `> 10000` | higher is worse | [Halstead 1977](https://en.wikipedia.org/wiki/Halstead_complexity_measures) |
+| `maintainability` | Microsoft Maintainability Index — composite of Volume, cyclomatic, and LOC | `< 65` | lower is worse | [Coleman 1994](https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-maintainability-index-range-and-meaning) |
+| `nesting` | Maximum block nesting depth in the function body | `> 4` | higher is worse | [ESLint max-depth](https://eslint.org/docs/latest/rules/max-depth) |
+| `funclen` | Non-blank, non-comment line count of the function body | `> 40` | higher is worse | [Fowler 2018](https://martinfowler.com/bliki/FunctionLength.html) |
+| `returns` | Number of `return` statements anywhere in the function body | `> 4` | higher is worse | [Dijkstra 1970](https://www.cs.utexas.edu/~EWD/transcriptions/EWD02xx/EWD249/EWD249.html) |
+| `readability` | Weighted 0–1 score from length, nesting, identifier length, and comment density | `< 0.6` | lower is worse | [Buse & Weimer 2010](https://web.eecs.umich.edu/~weimerw/p/weimer-tse2010-readability-preprint.pdf) |
+| `testability` | Weighted 0–1 score from parameter count, side effects, interface parameters, and length | `< 0.6` | lower is worse | [Bruntink & van Deursen 2006](https://www.researchgate.net/publication/220378137_An_empirical_study_into_class_testability) |
 
 All twelve are configurable per-project via `kyber.toml`. See [Configuration](#configuration).
 
@@ -169,7 +169,7 @@ testdata/complex/complex.go
   Branchy   cyclomatic=12 !
 ```
 
-**Reference**: McCabe, T. J. (1976). *A Complexity Measure*. IEEE Transactions on Software Engineering.
+**Reference**: McCabe, T. J. (1976). [*A Complexity Measure*](https://en.wikipedia.org/wiki/Cyclomatic_complexity). IEEE Transactions on Software Engineering.
 
 ### Cognitive Complexity
 
@@ -207,7 +207,7 @@ testdata/npath_branchy/main.go
   Triple   npath=8
 ```
 
-**Reference**: Nejmeh, B. A. (1988). *NPATH: A measure of execution path complexity and its applications*. Communications of the ACM, 31(2).
+**Reference**: Nejmeh, B. A. (1988). [*NPATH: A measure of execution path complexity and its applications*](https://dl.acm.org/doi/10.1145/42372.42379). Communications of the ACM, 31(2).
 
 ### Halstead Volume
 
@@ -226,7 +226,7 @@ testdata/complex/complex.go
   Branchy   halstead=670.20
 ```
 
-**Reference**: Halstead, M. H. (1977). *Elements of Software Science*. Elsevier.
+**Reference**: Halstead, M. H. (1977). [*Elements of Software Science*](https://en.wikipedia.org/wiki/Halstead_complexity_measures). Elsevier.
 
 ### Halstead Difficulty
 
@@ -245,7 +245,7 @@ testdata/complex/complex.go
   Branchy   difficulty=25 !
 ```
 
-**Reference**: Halstead (1977), same source as Volume.
+**Reference**: Halstead (1977), [same source as Volume](https://en.wikipedia.org/wiki/Halstead_complexity_measures).
 
 ### Halstead Effort
 
@@ -264,7 +264,7 @@ testdata/complex/complex.go
   Branchy   effort=16754.89 !
 ```
 
-**Reference**: Halstead (1977), same source as Volume.
+**Reference**: Halstead (1977), [same source as Volume](https://en.wikipedia.org/wiki/Halstead_complexity_measures).
 
 ### Maintainability Index
 
@@ -283,7 +283,7 @@ testdata/complex/complex.go
   Branchy   maintainability=46.06 !
 ```
 
-**Reference**: Coleman, D., Ash, D., Lowther, B., & Oman, P. (1994). *Using metrics to evaluate software system maintainability*. IEEE Computer, 27(8). Visual Studio's normalization variant is documented in the Visual Studio Code Metrics PowerTool.
+**Reference**: Coleman, D., Ash, D., Lowther, B., & Oman, P. (1994). *Using metrics to evaluate software system maintainability*. IEEE Computer, 27(8). Visual Studio's normalization variant is documented in the [Visual Studio Code Metrics PowerTool](https://learn.microsoft.com/en-us/visualstudio/code-quality/code-metrics-maintainability-index-range-and-meaning).
 
 ### Maximum Nesting Depth
 
@@ -302,6 +302,8 @@ testdata/nested/nested.go
   Nested   nesting=5 !
 ```
 
+**Reference**: ESLint [max-depth rule](https://eslint.org/docs/latest/rules/max-depth); depth 4 is the widely-cited default.
+
 ### Function Length
 
 **Counts**: source lines of the function body, excluding blank lines and lines whose first non-whitespace token is a `//` or `/*` comment.
@@ -319,6 +321,8 @@ testdata/complex/complex.go
   Branchy   funclen=29
 ```
 
+**Reference**: Fowler, M. (2018). [*Function Length*](https://martinfowler.com/bliki/FunctionLength.html). martinfowler.com.
+
 ### Return Statement Count
 
 **Counts**: number of `*ast.ReturnStmt` nodes anywhere in the function body. Returns inside nested function literals are not counted (they belong to the inner function).
@@ -335,6 +339,8 @@ $ kyber analyze --metric=returns ./testdata/multi_return/
 testdata/multi_return/main.go
   Classify   returns=5 !
 ```
+
+**Reference**: Dijkstra, E. W. (1970). [*Notes on Structured Programming* (EWD249)](https://www.cs.utexas.edu/~EWD/transcriptions/EWD02xx/EWD249/EWD249.html). The multiple-return debate traces to his structured-programming arguments.
 
 ### Readability Score
 
@@ -360,6 +366,8 @@ testdata/unreadable/deep.go
   Tangled   readability=0 !
 ```
 
+**Reference**: Buse, R. P. L., & Weimer, W. R. (2010). [*A metric for software readability*](https://web.eecs.umich.edu/~weimerw/p/weimer-tse2010-readability-preprint.pdf). IEEE Transactions on Software Engineering.
+
 ### Testability Score
 
 **Counts**: four 0–1 sub-signals, combined as a weighted average (all weights default to 1):
@@ -383,6 +391,8 @@ $ kyber analyze --metric=testability ./testdata/untestable/
 testdata/untestable/globals.go
   Dispatch   testability=0.20 !
 ```
+
+**Reference**: Bruntink, M., & van Deursen, A. (2006). [*An empirical study into class testability*](https://www.researchgate.net/publication/220378137_An_empirical_study_into_class_testability). Journal of Systems and Software, 79(9).
 
 ## Reading the report
 
