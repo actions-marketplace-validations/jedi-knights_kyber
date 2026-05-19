@@ -25,7 +25,7 @@ exceeds **2×** the threshold. The threshold is taken from `MetricOptions`
 
 ## Metric reference
 
-### cyclomatic — Cyclomatic Complexity
+### cyclomatic — Cyclomatic Complexity (cyc)
 
 | | |
 |---|---|
@@ -53,7 +53,7 @@ Use `cognitive` or `nesting` alongside `cyclomatic` to catch the nested case.
 
 ---
 
-### cognitive — Cognitive Complexity
+### cognitive — Cognitive Complexity (cog)
 
 | | |
 |---|---|
@@ -83,7 +83,7 @@ blocks with the same cyclomatic score.
 
 ---
 
-### npath — NPath Complexity
+### npath — NPath Complexity (npth)
 
 | | |
 |---|---|
@@ -115,7 +115,7 @@ chain is deep.
 
 ---
 
-### halstead — Halstead Volume
+### halstead — Halstead Volume (hal)
 
 | | |
 |---|---|
@@ -139,7 +139,7 @@ and cyclomatic misses entirely.
 
 ---
 
-### difficulty — Halstead Difficulty
+### difficulty — Halstead Difficulty (diff)
 
 | | |
 |---|---|
@@ -164,7 +164,7 @@ actually lives.
 
 ---
 
-### effort — Halstead Effort
+### effort — Halstead Effort (effrt)
 
 | | |
 |---|---|
@@ -188,7 +188,7 @@ whether the cause is operator density or sheer length.
 
 ---
 
-### maintainability — Maintainability Index
+### maintainability — Maintainability Index (mi)
 
 | | |
 |---|---|
@@ -221,7 +221,7 @@ yellow 50–64, red < 50. A single function dipping below 65 is unremarkable; a
 
 ---
 
-### nesting — Maximum Nesting Depth
+### nesting — Maximum Nesting Depth (nst)
 
 | | |
 |---|---|
@@ -245,7 +245,7 @@ ceiling without pulling in the full readability composite.
 
 ---
 
-### funclen — Function Length
+### funclen — Function Length (fln)
 
 | | |
 |---|---|
@@ -271,7 +271,7 @@ universally understood; it is often the right gate to add to CI first.
 
 ---
 
-### returns — Return Statement Count
+### returns — Return Statement Count (ret)
 
 | | |
 |---|---|
@@ -296,7 +296,7 @@ function scores high on both, it is a strong refactoring signal.
 
 ---
 
-### readability — Readability Score
+### readability — Readability Score (read)
 
 | | |
 |---|---|
@@ -326,7 +326,7 @@ variables. Trust the trend across a package more than any individual value.
 
 ---
 
-### testability — Testability Score
+### testability — Testability Score (tst)
 
 | | |
 |---|---|
