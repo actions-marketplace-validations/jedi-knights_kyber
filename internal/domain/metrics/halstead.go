@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/scanner"
 	"go/token"
-	"math"
 	"strings"
 
 	"github.com/jedi-knights/kyber/internal/domain"
@@ -84,13 +83,7 @@ func computeHalsteadVolume(sourceLines []string) float64 {
 	if len(src) == 0 {
 		return 0
 	}
-	counts := tallyHalsteadTokens(src)
-	n := counts.uniqueOps + counts.uniqueOperands
-	N := counts.totalOps + counts.totalOperands
-	if n == 0 || N == 0 {
-		return 0
-	}
-	return float64(N) * math.Log2(float64(n))
+	return halsteadVolume(tallyHalsteadTokens(src))
 }
 
 type halsteadCounts struct {

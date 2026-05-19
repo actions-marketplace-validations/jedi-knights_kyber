@@ -22,20 +22,19 @@ kyber walks a Go codebase, parses every function, and scores each one against a 
 $ kyber analyze ./...
 
 internal/adapters/parser/goast.go
-  parseDir          cognitive=3   cyclomatic=3   halstead=383.51   readability=0.47 !   testability=0.45 !
-  extractInterfaces cognitive=3   cyclomatic=4   halstead=287.69   readability=0.36 !   testability=0.62
+  parseDir          cognitive=3  cyclomatic=3  difficulty=15.24  effort=9043  funclen=12  halstead=500  maintainability=60  nesting=2  npath=5  readability=0.46 !  returns=2  testability=0.56 !
 
 internal/domain/metrics/cyclomatic.go
-  Analyze           cognitive=5   cyclomatic=5   halstead=540.41   readability=0.39 !   testability=0.35 !
+  Analyze           cognitive=5  cyclomatic=5  difficulty=18.10  effort=11200  effort=11200 !  funclen=14  halstead=540  maintainability=58  nesting=3  npath=4  readability=0.39 !  returns=2  testability=0.35 !
 
 [PACKAGE MEANS]
-  internal/adapters/parser    cognitive=3.47   cyclomatic=3.53   halstead=500.74   readability=0.46   testability=0.56   (15 fns)
-  internal/domain/metrics     cognitive=1.88   cyclomatic=2.81   halstead=306.28   readability=0.54   testability=0.73   (78 fns)
+  internal/adapters/parser   cognitive=3.47   cyclomatic=3.53   maintainability=59.84   npath=5.40   ...   (15 fns)
+  internal/domain/metrics    cognitive=1.64   cyclomatic=2.51   maintainability=72.13   npath=3.96   ...   (143 fns)
 
 [OVERALL]
-  cognitive=2.48   cyclomatic=3.10   halstead=394.77   readability=0.50   testability=0.66   (176 fns)
+  cognitive=2.17   cyclomatic=2.84   maintainability=67.13   npath=4.95   ...   (241 fns)
 
-Functions: 176   Findings: 218   Files: 26   Time: 16ms
+Functions: 241   Findings: 521   Files: 33   Time: 26ms
 ```
 
 The architecture is built around a single `Metric` interface. Adding a new metric (nesting depth, parameter count, fan-out, etc.) is one new file in `internal/domain/metrics/` plus one registration line — nothing else needs to change.
@@ -79,12 +78,19 @@ $ kyber version
 v0.1.0
 
 $ kyber list-metrics
-ID           NAME                   DEFAULT  DIRECTION        DESCRIPTION
-cognitive    Cognitive Complexity   15       higher is worse  SonarSource Cognitive Complexity — control flow + nesting penalty.
-cyclomatic   Cyclomatic Complexity  7        higher is worse  McCabe decision-point count.
-halstead     Halstead Volume        1000     higher is worse  Halstead Volume — token counts weighted by vocabulary size.
-readability  Readability Score      0.6      lower is worse   Weighted 0–1 score from length, nesting, identifier length, comments.
-testability  Testability Score      0.6      lower is worse   Weighted 0–1 score from parameter count, side effects, interface params, length.
+ID               NAME                    DEFAULT  DIRECTION        DESCRIPTION
+cognitive        Cognitive Complexity    15       higher is worse  SonarSource Cognitive Complexity — control flow + nesting penalty.
+cyclomatic       Cyclomatic Complexity   7        higher is worse  McCabe decision-point count.
+difficulty       Halstead Difficulty     15       higher is worse  Halstead Difficulty — D = (n1/2) * (N2/n2).
+effort           Halstead Effort         10000    higher is worse  Halstead Effort — E = D * V (Difficulty times Volume).
+funclen          Function Length         40       higher is worse  Non-blank, non-comment line count of the function body.
+halstead         Halstead Volume         1000     higher is worse  Halstead Volume — token counts weighted by vocabulary size.
+maintainability  Maintainability Index   65       lower is worse   Microsoft Maintainability Index — composite of Volume, cyclomatic, and LOC.
+nesting          Maximum Nesting Depth   4        higher is worse  Deepest block nesting level inside the function body.
+npath            NPath Complexity        200      higher is worse  Nejmeh NPath — acyclic execution paths (multiplicative).
+readability      Readability Score       0.6      lower is worse   Weighted 0–1 score from length, nesting, identifier length, comments.
+returns          Return Statement Count  4        higher is worse  Number of return statements anywhere in the function body.
+testability      Testability Score       0.6      lower is worse   Weighted 0–1 score from parameter count, side effects, interface params, length.
 ```
 
 When you install a tagged release this way, `kyber version` reports the tag automatically — kyber reads its module version from the embedded build info.
@@ -130,11 +136,18 @@ kyber analyze --metric=cyclomatic --metric=readability ./...
 |---|---|---|---|
 | `cyclomatic` | McCabe decision-point count — independent paths through a function | `> 7` | higher is worse |
 | `cognitive` | SonarSource Cognitive Complexity — control flow weighted by nesting | `> 15` | higher is worse |
+| `npath` | NPath complexity — number of acyclic execution paths (multiplicative) | `> 200` | higher is worse |
 | `halstead` | Halstead Volume — token count weighted by vocabulary size | `> 1000` | higher is worse |
+| `difficulty` | Halstead Difficulty — `(n1/2) · (N2/n2)` | `> 15` | higher is worse |
+| `effort` | Halstead Effort — Difficulty × Volume | `> 10000` | higher is worse |
+| `maintainability` | Microsoft Maintainability Index — composite of Volume, cyclomatic, and LOC | `< 65` | lower is worse |
+| `nesting` | Maximum block nesting depth in the function body | `> 4` | higher is worse |
+| `funclen` | Non-blank, non-comment line count of the function body | `> 40` | higher is worse |
+| `returns` | Number of `return` statements anywhere in the function body | `> 4` | higher is worse |
 | `readability` | Weighted 0–1 score from length, nesting, identifier length, and comment density | `< 0.6` | lower is worse |
 | `testability` | Weighted 0–1 score from parameter count, side effects, interface parameters, and length | `< 0.6` | lower is worse |
 
-All five are configurable per-project via `kyber.toml`. See [Configuration](#configuration).
+All twelve are configurable per-project via `kyber.toml`. See [Configuration](#configuration).
 
 ### Cyclomatic Complexity
 
@@ -156,6 +169,16 @@ All five are configurable per-project via `kyber.toml`. See [Configuration](#con
 
 **Reference**: Campbell, G. A. (2018). *Cognitive Complexity — A new way of measuring understandability*. [SonarSource white paper (PDF)](https://www.sonarsource.com/docs/CognitiveComplexity.pdf).
 
+### NPath Complexity
+
+**Counts**: number of acyclic execution paths through the function. Where cyclomatic adds decision points, NPath multiplies them — `if-else` contributes `paths(then) + paths(else)`, sequential statements multiply, loops contribute `paths(body) + 1`, switch contributes the sum of its cases.
+
+**Formula**: recursive walk of the AST applying the rules above; no single closed-form expression. Logical operators (`&&`, `||`) inside conditions each add 1 path.
+
+**How to read it**: 1 is a straight-line function; 8 is three sequential if-else blocks; values explode quickly past 200 (the standard yellow flag) because the count is multiplicative. A function with cyclomatic 8 but NPath 256 has the same number of decision points as a flat structure but stacks them — that's the case NPath is designed to catch.
+
+**Reference**: Nejmeh, B. A. (1988). *NPATH: A measure of execution path complexity and its applications*. Communications of the ACM, 31(2).
+
 ### Halstead Volume
 
 **Counts**: every token in the function body, classified as an operator (keywords, punctuation, operators) or operand (identifiers, literals). Tracks `n1`, `n2` (unique operators/operands) and `N1`, `N2` (total counts).
@@ -165,6 +188,60 @@ All five are configurable per-project via `kyber.toml`. See [Configuration](#con
 **How to read it**: roughly proportional to source-code information content. Below ~200 is trivial; 200–1000 is typical for working code; above 1000 indicates either a function doing too much or a function with many distinct operators/identifiers (e.g. a long cobra command builder, which is unavoidable). Halstead Volume catches density that cyclomatic and cognitive both miss: a long straight-line function with no branches scores 1 on cyclomatic but can have very high Volume.
 
 **Reference**: Halstead, M. H. (1977). *Elements of Software Science*. Elsevier.
+
+### Halstead Difficulty
+
+**Counts**: same token classification as Volume.
+
+**Formula**: `D = (n1 / 2) × (N2 / n2)`. High when there are many distinct operators against few distinct operands — the program manipulates a small data vocabulary in many ways.
+
+**How to read it**: 15 is a reasonable yellow flag for a single function. Useful as a complement to Volume: two functions can have similar Volume but very different Difficulty depending on whether complexity comes from token sprawl (high V, lower D) or operator density (lower V, higher D).
+
+**Reference**: Halstead (1977), same source as Volume.
+
+### Halstead Effort
+
+**Counts**: same token classification as Volume.
+
+**Formula**: `E = D × V`. Roughly proportional to total mental effort to write or understand the function.
+
+**How to read it**: scales as the product of Difficulty and Volume, so values can be large (10⁴–10⁵ for working code). The standard yellow flag is 10000. Effort is the single most actionable Halstead measure when triaging — it captures both density (D) and total content (V) in one number.
+
+**Reference**: Halstead (1977), same source as Volume.
+
+### Maintainability Index
+
+**Counts**: composite of Halstead Volume, cyclomatic complexity, and effective line count.
+
+**Formula**: `MI = max(0, min(100, (171 − 5.2·ln(V) − 0.23·CC − 16.2·ln(LOC)) × 100/171))`. Normalized to a 0–100 scale; clamped at 0 and 100.
+
+**How to read it**: this is the only metric where **higher is better**. Visual Studio's traffic-light convention: green ≥ 65, yellow 50–64, red < 50. A single function dropping below 65 isn't a crisis; a *package mean* below 65 is. MI is the most useful single-number summary because it composes three orthogonal signals.
+
+**Reference**: Coleman, D., Ash, D., Lowther, B., & Oman, P. (1994). *Using metrics to evaluate software system maintainability*. IEEE Computer, 27(8). Visual Studio's normalization variant is documented in the Visual Studio Code Metrics PowerTool.
+
+### Maximum Nesting Depth
+
+**Counts**: deepest level of nested `*ast.BlockStmt` inside the function body. Each `if`, `for`, `switch case`, or anonymous block adds one level.
+
+**Formula**: walk all `BlockStmt` nodes; return the maximum nesting depth observed.
+
+**How to read it**: depth 1 is the function body itself; 4 is the standard upper bound; depth 5+ is a strong refactoring signal. Often a leading indicator that cognitive complexity is also high.
+
+### Function Length
+
+**Counts**: source lines of the function body, excluding blank lines and lines whose first non-whitespace token is a `//` or `/*` comment.
+
+**Formula**: count lines where the trimmed content is non-empty and does not start with a comment marker.
+
+**How to read it**: 40 is the standard yellow flag and matches `rules/go-conventions.md`. Useful as a standalone gate because Readability bakes length into a composite — promoting it lets a project enforce length without dragging in identifier-length and comment-density signals.
+
+### Return Statement Count
+
+**Counts**: number of `*ast.ReturnStmt` nodes anywhere in the function body. Returns inside nested function literals are not counted (they belong to the inner function).
+
+**Formula**: AST walk with `ast.Inspect`, stopping at `*ast.FuncLit` boundaries.
+
+**How to read it**: 4 is a reasonable yellow flag. Many early returns can be intentional (guard clauses, error handling) or accidental (a function trying to do too much) — the metric leaves the judgment to the threshold rather than baking a heuristic in.
 
 ### Readability Score
 
