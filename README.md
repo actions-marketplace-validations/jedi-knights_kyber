@@ -147,6 +147,8 @@ kyber analyze --metric=cyclomatic --metric=readability ./...
 
 All twelve are configurable per-project via `kyber.toml`. See [Configuration](#configuration).
 
+To run only specific metrics, pass `--metric=<id>` (repeatable). To exclude metrics, pass `--disable=<id>` (also repeatable). The examples in each subsection below use `--metric` to keep the output focused on one column at a time.
+
 ### Cyclomatic Complexity
 
 **Counts**: independent paths through a function — adds one for every `if`, `for`, `range`, non-default `case`, non-default `select` clause, and short-circuit boolean operator (`&&`, `||`).
@@ -154,6 +156,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: `1 + decision_points`.
 
 **How to read it**: 1 is a straight-line function; 5–7 is typical for branching logic; above 7 is a candidate for extraction. Cyclomatic alone misses *nesting* — a function with seven sequential `if` blocks scores the same as one with seven-deep nesting.
+
+**Example**:
+
+```bash
+$ kyber analyze --metric=cyclomatic ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   cyclomatic=12 !
+```
 
 **Reference**: McCabe, T. J. (1976). *A Complexity Measure*. IEEE Transactions on Software Engineering.
 
@@ -165,6 +176,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: SonarQube's default per-function warning is 15. A function scoring close to its cyclomatic value has flat branching; a function scoring much higher than its cyclomatic (e.g. cyclomatic 4, cognitive 10) has deeply nested branching and is the primary type cognitive complexity is designed to catch.
 
+**Example** — the `nested` fixture has four-deep nesting; cognitive is 10 (below the threshold but well above the same function's cyclomatic of 4):
+
+```bash
+$ kyber analyze --metric=cognitive ./testdata/nested/
+
+testdata/nested/nested.go
+  Nested   cognitive=10
+```
+
 **Reference**: Campbell, G. A. (2018). *Cognitive Complexity — A new way of measuring understandability*. [SonarSource white paper (PDF)](https://www.sonarsource.com/docs/CognitiveComplexity.pdf).
 
 ### NPath Complexity
@@ -174,6 +194,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: recursive walk of the AST applying the rules above; no single closed-form expression. Logical operators (`&&`, `||`) inside conditions each add 1 path.
 
 **How to read it**: 1 is a straight-line function; 8 is three sequential if-else blocks; values explode quickly past 200 (the standard yellow flag) because the count is multiplicative. A function with cyclomatic 8 but NPath 256 has the same number of decision points as a flat structure but stacks them — that's the case NPath is designed to catch.
+
+**Example** — three sequential if-else blocks yield 2 × 2 × 2 = 8 paths:
+
+```bash
+$ kyber analyze --metric=npath ./testdata/npath_branchy/
+
+testdata/npath_branchy/main.go
+  Triple   npath=8
+```
 
 **Reference**: Nejmeh, B. A. (1988). *NPATH: A measure of execution path complexity and its applications*. Communications of the ACM, 31(2).
 
@@ -185,6 +214,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: roughly proportional to source-code information content. Below ~200 is trivial; 200–1000 is typical for working code; above 1000 indicates either a function doing too much or a function with many distinct operators/identifiers (e.g. a long cobra command builder, which is unavoidable). Halstead Volume catches density that cyclomatic and cognitive both miss: a long straight-line function with no branches scores 1 on cyclomatic but can have very high Volume.
 
+**Example**:
+
+```bash
+$ kyber analyze --metric=halstead ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   halstead=670.20
+```
+
 **Reference**: Halstead, M. H. (1977). *Elements of Software Science*. Elsevier.
 
 ### Halstead Difficulty
@@ -194,6 +232,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: `D = (n1 / 2) × (N2 / n2)`. High when there are many distinct operators against few distinct operands — the program manipulates a small data vocabulary in many ways.
 
 **How to read it**: 15 is a reasonable yellow flag for a single function. Useful as a complement to Volume: two functions can have similar Volume but very different Difficulty depending on whether complexity comes from token sprawl (high V, lower D) or operator density (lower V, higher D).
+
+**Example**:
+
+```bash
+$ kyber analyze --metric=difficulty ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   difficulty=25 !
+```
 
 **Reference**: Halstead (1977), same source as Volume.
 
@@ -205,6 +252,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: scales as the product of Difficulty and Volume, so values can be large (10⁴–10⁵ for working code). The standard yellow flag is 10000. Effort is the single most actionable Halstead measure when triaging — it captures both density (D) and total content (V) in one number.
 
+**Example**:
+
+```bash
+$ kyber analyze --metric=effort ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   effort=16754.89 !
+```
+
 **Reference**: Halstead (1977), same source as Volume.
 
 ### Maintainability Index
@@ -214,6 +270,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: `MI = max(0, min(100, (171 − 5.2·ln(V) − 0.23·CC − 16.2·ln(LOC)) × 100/171))`. Normalized to a 0–100 scale; clamped at 0 and 100.
 
 **How to read it**: this is the only metric where **higher is better**. Visual Studio's traffic-light convention: green ≥ 65, yellow 50–64, red < 50. A single function dropping below 65 isn't a crisis; a *package mean* below 65 is. MI is the most useful single-number summary because it composes three orthogonal signals.
+
+**Example**:
+
+```bash
+$ kyber analyze --metric=maintainability ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   maintainability=46.06 !
+```
 
 **Reference**: Coleman, D., Ash, D., Lowther, B., & Oman, P. (1994). *Using metrics to evaluate software system maintainability*. IEEE Computer, 27(8). Visual Studio's normalization variant is documented in the Visual Studio Code Metrics PowerTool.
 
@@ -225,6 +290,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: depth 1 is the function body itself; 4 is the standard upper bound; depth 5+ is a strong refactoring signal. Often a leading indicator that cognitive complexity is also high.
 
+**Example**:
+
+```bash
+$ kyber analyze --metric=nesting ./testdata/nested/
+
+testdata/nested/nested.go
+  Nested   nesting=5 !
+```
+
 ### Function Length
 
 **Counts**: source lines of the function body, excluding blank lines and lines whose first non-whitespace token is a `//` or `/*` comment.
@@ -233,6 +307,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: 40 is the standard yellow flag and matches `rules/go-conventions.md`. Useful as a standalone gate because Readability bakes length into a composite — promoting it lets a project enforce length without dragging in identifier-length and comment-density signals.
 
+**Example**:
+
+```bash
+$ kyber analyze --metric=funclen ./testdata/complex/
+
+testdata/complex/complex.go
+  Branchy   funclen=29
+```
+
 ### Return Statement Count
 
 **Counts**: number of `*ast.ReturnStmt` nodes anywhere in the function body. Returns inside nested function literals are not counted (they belong to the inner function).
@@ -240,6 +323,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: AST walk with `ast.Inspect`, stopping at `*ast.FuncLit` boundaries.
 
 **How to read it**: 4 is a reasonable yellow flag. Many early returns can be intentional (guard clauses, error handling) or accidental (a function trying to do too much) — the metric leaves the judgment to the threshold rather than baking a heuristic in.
+
+**Example**:
+
+```bash
+$ kyber analyze --metric=returns ./testdata/multi_return/
+
+testdata/multi_return/main.go
+  Classify   returns=5 !
+```
 
 ### Readability Score
 
@@ -256,6 +348,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 
 **How to read it**: 1.0 is ideal; below 0.6 flags. The score is a proxy, not a ground truth — short utility functions can score low simply because they lack comments and use single-letter loop variables. Trust the trend across a package more than any one function's value. (Real academic readability metrics like [Buse-Weimer (2010)](https://web.eecs.umich.edu/~weimerw/p/weimer-tse2010-readability-preprint.pdf) train weights against human ratings; kyber's weights are hand-picked.)
 
+**Example**:
+
+```bash
+$ kyber analyze --metric=readability ./testdata/unreadable/
+
+testdata/unreadable/deep.go
+  Tangled   readability=0 !
+```
+
 ### Testability Score
 
 **Counts**: four 0–1 sub-signals, combined as a weighted average (all weights default to 1):
@@ -270,6 +371,15 @@ All twelve are configurable per-project via `kyber.toml`. See [Configuration](#c
 **Formula**: `(w_p·params + w_se·sideEffects + w_iface·interfaces + w_len·length) / sum(weights)`.
 
 **How to read it**: 1.0 is ideal; below 0.6 flags. This metric is heuristic, not from published literature — closest published kin is Bruntink & van Deursen (2006), but that operates at class level and doesn't translate to Go functions. Pure `fmt` calls (`Sprintf`, `Errorf`, `Sprint`, `Sprintln`, `Append*`, `Sscan*`) are excluded from the side-effect count; only `Println`/`Printf`/`Fprint*` and other observably-impure functions are counted. Use this as a "watch the trend" signal rather than a strict gate.
+
+**Example**:
+
+```bash
+$ kyber analyze --metric=testability ./testdata/untestable/
+
+testdata/untestable/globals.go
+  Dispatch   testability=0.20 !
+```
 
 ## Reading the report
 
