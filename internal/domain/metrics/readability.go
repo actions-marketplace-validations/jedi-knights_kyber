@@ -105,30 +105,25 @@ func computeNestingDepth(fn *ast.FuncDecl) int {
 	if fn == nil || fn.Body == nil {
 		return 0
 	}
-	maxDepth := 0
-	var walk func(n ast.Node, depth int)
-	walk = func(n ast.Node, depth int) {
-		if n == nil {
-			return
-		}
-		if _, ok := n.(*ast.BlockStmt); ok {
-			depth++
-			if depth > maxDepth {
-				maxDepth = depth
-			}
-		}
-		ast.Inspect(n, func(child ast.Node) bool {
-			if child == n {
-				return true
-			}
-			if _, ok := child.(*ast.BlockStmt); ok {
-				walk(child, depth)
-				return false
-			}
+	return walkBlock(fn.Body, 0)
+}
+
+func walkBlock(block *ast.BlockStmt, depth int) int {
+	depth++
+	maxDepth := depth
+	ast.Inspect(block, func(child ast.Node) bool {
+		if child == block {
 			return true
-		})
-	}
-	walk(fn.Body, 0)
+		}
+		inner, ok := child.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if d := walkBlock(inner, depth); d > maxDepth {
+			maxDepth = d
+		}
+		return false
+	})
 	return maxDepth
 }
 

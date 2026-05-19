@@ -138,22 +138,30 @@ func applyFlags(cfg *config.Config, args []string, f *analyzeFlags) {
 // resolveEnabledMetrics combines TOML and flag inputs. --metric is an
 // allowlist; --disable subtracts from whatever set is left.
 func resolveEnabledMetrics(cfg *config.Config, registry *domain.Registry, f *analyzeFlags) []string {
-	var enabled []string
+	enabled := initialEnabledMetrics(cfg, registry, f)
+	return subtractDisabled(enabled, f.disable)
+}
+
+func initialEnabledMetrics(cfg *config.Config, registry *domain.Registry, f *analyzeFlags) []string {
 	switch {
 	case len(f.metrics) > 0:
-		enabled = f.metrics
+		return f.metrics
 	case len(cfg.Metrics) > 0:
-		enabled = cfg.EnabledIDs()
-	default:
-		for _, m := range registry.All() {
-			enabled = append(enabled, m.ID())
-		}
+		return cfg.EnabledIDs()
 	}
-	if len(f.disable) == 0 {
+	ids := make([]string, 0, len(registry.All()))
+	for _, m := range registry.All() {
+		ids = append(ids, m.ID())
+	}
+	return ids
+}
+
+func subtractDisabled(enabled, disable []string) []string {
+	if len(disable) == 0 {
 		return enabled
 	}
-	disabled := make(map[string]bool, len(f.disable))
-	for _, id := range f.disable {
+	disabled := make(map[string]bool, len(disable))
+	for _, id := range disable {
 		disabled[id] = true
 	}
 	out := enabled[:0]

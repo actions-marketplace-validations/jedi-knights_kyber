@@ -50,23 +50,9 @@ func (p *GoAST) ParseFiles(ctx context.Context, paths []string) ([]*domain.Funct
 
 func (p *GoAST) parseDir(ctx context.Context, dir string, paths []string) ([]*domain.Function, error) {
 	fset := token.NewFileSet()
-	files := make([]*ast.File, 0, len(paths))
-	sourceByFile := make(map[string][]byte, len(paths))
-
-	for _, path := range paths {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		src, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", path, err)
-		}
-		file, err := parser.ParseFile(fset, path, src, parser.ParseComments)
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", path, err)
-		}
-		files = append(files, file)
-		sourceByFile[path] = src
+	files, sourceByFile, err := parseFiles(ctx, fset, paths)
+	if err != nil {
+		return nil, err
 	}
 
 	pkg := &domain.Package{
@@ -81,17 +67,43 @@ func (p *GoAST) parseDir(ctx context.Context, dir string, paths []string) ([]*do
 	var out []*domain.Function
 	for _, file := range files {
 		path := fset.Position(file.Pos()).Filename
-		src := sourceByFile[path]
-		lines := splitLines(src)
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok {
-				continue
-			}
-			out = append(out, buildFunction(fn, path, fset, pkg, lines))
-		}
+		lines := splitLines(sourceByFile[path])
+		out = append(out, functionsInFile(file, path, fset, pkg, lines)...)
 	}
 	return out, nil
+}
+
+func parseFiles(ctx context.Context, fset *token.FileSet, paths []string) ([]*ast.File, map[string][]byte, error) {
+	files := make([]*ast.File, 0, len(paths))
+	sourceByFile := make(map[string][]byte, len(paths))
+	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+		file, err := parser.ParseFile(fset, path, src, parser.ParseComments)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parsing %s: %w", path, err)
+		}
+		files = append(files, file)
+		sourceByFile[path] = src
+	}
+	return files, sourceByFile, nil
+}
+
+func functionsInFile(file *ast.File, path string, fset *token.FileSet, pkg *domain.Package, lines []string) []*domain.Function {
+	var out []*domain.Function
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		out = append(out, buildFunction(fn, path, fset, pkg, lines))
+	}
+	return out
 }
 
 func buildFunction(fn *ast.FuncDecl, path string, fset *token.FileSet, pkg *domain.Package, lines []string) *domain.Function {
@@ -144,18 +156,22 @@ func extractInterfaces(files []*ast.File) map[string]*ast.InterfaceType {
 			if !ok || gen.Tok != token.TYPE {
 				continue
 			}
-			for _, spec := range gen.Specs {
-				ts, ok := spec.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				if iface, ok := ts.Type.(*ast.InterfaceType); ok {
-					out[ts.Name.Name] = iface
-				}
-			}
+			collectInterfaceSpecs(gen.Specs, out)
 		}
 	}
 	return out
+}
+
+func collectInterfaceSpecs(specs []ast.Spec, out map[string]*ast.InterfaceType) {
+	for _, spec := range specs {
+		ts, ok := spec.(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		if iface, ok := ts.Type.(*ast.InterfaceType); ok {
+			out[ts.Name.Name] = iface
+		}
+	}
 }
 
 func extractGlobals(files []*ast.File) map[string]token.Pos {
@@ -172,14 +188,18 @@ func collectGlobalsFromFile(file *ast.File, out map[string]token.Pos) {
 		if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
 			continue
 		}
-		for _, spec := range gen.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, name := range vs.Names {
-				out[name.Name] = name.Pos()
-			}
+		collectValueSpecNames(gen.Specs, out)
+	}
+}
+
+func collectValueSpecNames(specs []ast.Spec, out map[string]token.Pos) {
+	for _, spec := range specs {
+		vs, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for _, name := range vs.Names {
+			out[name.Name] = name.Pos()
 		}
 	}
 }

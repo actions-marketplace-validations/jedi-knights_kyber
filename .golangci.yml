@@ -10,9 +10,9 @@ linters:
 
   settings:
     gocyclo:
-      # Flag functions with cyclomatic complexity > 7.
-      # min-complexity is the lowest value that gets reported, so 8 enforces ≤ 7.
-      min-complexity: 8
+      # Flag functions with cyclomatic complexity > 7 (gocyclo reports
+      # complexity strictly greater than min-complexity).
+      min-complexity: 7
 
     revive:
       rules:
